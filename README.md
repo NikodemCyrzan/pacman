@@ -3,4 +3,4 @@
 Pac-Man game
 
 ## How to play?
-Siply download, open index.html and have fun 😁
+Simply download, open index.html and have fun 😁
