@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pacman</title>
+    <style>
+        @font-face {
+            font-family: pixel;
+            src: url(pixel.ttf);
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgb(37, 37, 37);
+            font-family: pixel;
+        }
+
+        .scene {
+            position: relative;
+            width: 800px;
+            height: 800px;
+            background-color: black;
+            box-shadow: 0 0 20px 20px rgba(12, 12, 12, 0.151);
+        }
+
+        .collider {
+            background-color: black;
+            height: 42px;
+            width: 42px;
+            position: absolute;
+        }
+
+        .collider-top {
+            border-top: 4px solid blue;
+        }
+
+        .collider-bottom {
+            border-bottom: 4px solid blue;
+        }
+
+        .collider-left {
+            border-left: 4px solid blue;
+        }
+
+        .collider-right {
+            border-right: 4px solid blue;
+        }
+
+        .collider-door {
+            border-top: 4px solid red;
+            border-bottom: 4px solid red;
+        }
+
+        .player {
+            position: absolute;
+            height: 50px;
+            width: 50px;
+            background-position: center;
+            background-size: cover;
+            animation: pacman 400ms;
+            animation-iteration-count: infinite;
+            animation-timing-function: steps(1, end);
+        }
+
+        .coin {
+            position: absolute;
+            height: 50px;
+            width: 50px;
+            background-position: center;
+            background-size: cover;
+            background-image: url("coin.png");
+        }
+
+        .ghost {
+            position: absolute;
+            height: 50px;
+            width: 50px;
+            background-color: red;
+        }
+
+        @keyframes pacman {
+            0% {
+                background-image: url("pacman0.png");
+            }
+
+            50% {
+                background-image: url("pacman1.png");
+            }
+
+            100% {
+                background-image: url("pacman0.png");
+            }
+        }
+
+        #gameover {
+            font-size: 100px;
+            color: white;
+            position: absolute;
+            font-weight: bolder;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .score {
+            font-size: 30px;
+            color: white;
+            position: absolute;
+            font-weight: bold;
+            top: -50px;
+        }
+
+        .playagain {
+            font-weight: lighter;
+            position: absolute;
+            top: 120px;
+            font-size: 50px;
+            font-family: inherit;
+            padding: 10px 40px;
+            color: black;
+            border: none;
+            border-radius: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="scene" id="scene">
+        <span class="score" id="score">SCORE: 0</span>
+    </div>
+    <div style="display: none;" id="gameover">GAME OVER<br>
+        <button
+            onclick="window.location.replace(window.location.pathname + window.location.search + window.location.hash);"
+            class="playagain">PLAY AGAIN
+        </button>
+    </div>
+
+    <!-- start rep -->
+    <script>
+        class Vector2 {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+        }
+
+        class collider {
+            constructor(position, variant) {
+                this.position = position;
+                this.variant = variant;
+            }
+            getHTML() {
+                let classes = "";
+                let size = new Vector2(50, 50)
+
+                for (let i = 0; i < this.variant.length; i++) {
+                    switch (this.variant[i]) {
+                        case "t":
+                            classes += "collider-top";
+                            size.y -= 4;
+                            break;
+                        case "b":
+                            classes += "collider-bottom";
+                            size.y -= 4;
+                            break;
+                        case "l":
+                            classes += "collider-left";
+                            size.x -= 4;
+                            break;
+                        case "r":
+                            classes += "collider-right";
+                            size.x -= 4;
+                            break;
+                        case "d":
+                            classes += "collider-door";
+                            size.y -= 8;
+                            break;
+                        default:
+                            break;
+                    }
+                    if (i != this.variant.length - 1)
+                        classes += " ";
+                }
+
+                return `<div style="width: ${size.x}px; height: ${size.y}px; left: ${this.position.x}px; bottom: ${this.position.y}px;" class="collider ${classes}"></div>`
+            }
+        }
+
+        class ghost {
+            constructor(color, position, id) {
+                this.color = color;
+                this.position = position;
+                scene.innerHTML += `<div style="left: ${this.position.x}px; bottom: ${this.position.y}px" class="ghost" id="${id}"></div>`;
+                this.body = document.getElementById(id);
+                this.direction = 1;
+                this.id = id;
+            }
+            Move() {
+                this.body = document.getElementById(this.id);
+                let freeDirections = []
+                switch (this.direction) {
+                    case 0:
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x - 50, this.position.y), false, true))
+                            freeDirections.push(0);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x, this.position.y + 50), false, true))
+                            freeDirections.push(1);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x, this.position.y - 50), false, true))
+                            freeDirections.push(3);
+                        break;
+                    case 1:
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x - 50, this.position.y), false, true))
+                            freeDirections.push(0);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x, this.position.y + 50), false, true))
+                            freeDirections.push(1);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x + 50, this.position.y), false, true))
+                            freeDirections.push(2);
+                        break;
+                    case 2:
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x, this.position.y - 50), false, true))
+                            freeDirections.push(3);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x, this.position.y + 50), false, true))
+                            freeDirections.push(1);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x + 50, this.position.y), false, true))
+                            freeDirections.push(2);
+                        break;
+                    case 3:
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x, this.position.y - 50), false, true))
+                            freeDirections.push(3);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x - 50, this.position.y), false, true))
+                            freeDirections.push(0);
+                        if (!isColliderOnPosition(collidersPositions, new Vector2(this.position.x + 50, this.position.y), false, true))
+                            freeDirections.push(2);
+                        break;
+                    default:
+                        break;
+                }
+
+                if (freeDirections.length == 0)
+                    freeDirections.push(this.direction == 0 ? 2 : this.direction == 1 ? 3 : this.direction == 2 ? 0 : this.direction == 3 ? 1 : 0)
+
+                let randomDirection = randomRange(0, 3);
+
+                while (freeDirections[randomDirection] == undefined)
+                    randomDirection = randomRange(0, 3);
+
+                this.direction = freeDirections[randomDirection];
+
+                switch (this.direction) {
+                    case 0:
+                        this.position.x -= 50
+                        break;
+                    case 1:
+                        this.position.y += 50
+                        break;
+                    case 2:
+                        this.position.x += 50
+                        break;
+                    case 3:
+                        this.position.y -= 50
+                        break;
+                    default:
+                        break;
+                }
+
+                if (this.position.x == -50)
+                    this.position.x = 750
+                else if (this.position.x == 800)
+                    this.position.x = 0
+                if (this.position.y == -50)
+                    this.position.y = 750
+                else if (this.position.y == 800)
+                    this.position.y = 0
+
+                if ((this.position.x == playerPosition.x && this.position.y == playerPosition.y) || (this.position.x == lastPlayerPosition.x && this.position.y == lastPlayerPosition.y)) {
+                    clearInterval(gameLoop);
+                    document.getElementById("gameover").style.display = "flex";
+                    player.remove();
+                }
+                this.body.style.left = `${this.position.x}px`;
+                this.body.style.bottom = `${this.position.y}px`;
+            }
+        }
+
+        function randomRange(min, max) {
+            return Math.floor(Math.random() * (max - min + 1) + min)
+        }
+
+        function renderColliders(colliders) {
+            for (let i = 0; i < colliders.length; i++) {
+                scene.innerHTML += colliders[i].getHTML();
+            }
+        }
+
+        function spawnPlayer(position) {
+            scene.innerHTML += `<div style="left: ${position.x}px; bottom: ${position.y}px" class="player" id="player"></div>`
+            playerPosition = position;
+            lastPlayerPosition = position;
+        }
+
+        function checkCollisions(position, direction, colliders) {
+            for (let i = 0; i < colliders.length; i++) {
+                switch (direction) {
+                    case 0:
+                        if (colliders[i].variant != "cf" && colliders[i].position.y == playerPosition.y && colliders[i].position.x + 50 == playerPosition.x)
+                            return false
+                        break;
+                    case 1:
+                        if (colliders[i].variant != "cf" && colliders[i].position.x == playerPosition.x && colliders[i].position.y - 50 == playerPosition.y)
+                            return false
+                        break;
+                    case 2:
+                        if (colliders[i].variant != "cf" && colliders[i].position.y == playerPosition.y && colliders[i].position.x - 50 == playerPosition.x)
+                            return false
+                        break;
+                    case 3:
+                        if (colliders[i].variant != "cf" && colliders[i].position.x == playerPosition.x && colliders[i].position.y + 50 == playerPosition.y)
+                            return false
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return true;
+        }
+
+        function spawnCoins(colliders) {
+            for (let x = 0; x <= 750; x += 50) {
+                for (let y = 0; y <= 750; y += 50) {
+                    if (!isColliderOnPosition(colliders, new Vector2(x, y), true))
+                        scene.innerHTML += `<div id="coin${x}${y}" class="coin" style="left: ${x}px; bottom: ${y}px"></div>`
+                }
+            }
+        }
+
+        function isColliderOnPosition(colliders, position, cf, ignoreDoor = false) {
+            for (let i = 0; i < colliders.length; i++) {
+                if ((colliders[i].variant != "cf" || cf) && (colliders[i].variant != "d" || !ignoreDoor) && colliders[i].position.x == position.x && colliders[i].position.y == position.y)
+                    return true;
+            }
+            return false;
+        }
+    </script>
+    <!-- end rep-->
+
+    <script>
+        let scene = document.getElementById("scene");
+
+        let playerPosition;
+        let lastPlayerPosition;
+        let playerDirection = 0
+
+        const collidersPositions = [
+            new collider(new Vector2(0, 300), "tr"),
+            new collider(new Vector2(0, 250), "r"),
+            new collider(new Vector2(0, 150), "r"),
+            new collider(new Vector2(0, 100), "r"),
+            new collider(new Vector2(0, 50), "r"),
+            new collider(new Vector2(50, 0), "t"),
+            new collider(new Vector2(100, 0), "t"),
+            new collider(new Vector2(150, 0), "t"),
+            new collider(new Vector2(200, 0), "t"),
+            new collider(new Vector2(250, 0), "t"),
+            new collider(new Vector2(300, 0), "t"),
+            new collider(new Vector2(450, 0), "t"),
+            new collider(new Vector2(500, 0), "t"),
+            new collider(new Vector2(550, 0), "t"),
+            new collider(new Vector2(600, 0), "t"),
+            new collider(new Vector2(650, 0), "t"),
+            new collider(new Vector2(700, 0), "t"),
+            new collider(new Vector2(750, 50), "l"),
+            new collider(new Vector2(100, 100), "ltrb"),
+            new collider(new Vector2(200, 100), "ltb"),
+            new collider(new Vector2(250, 100), "rb"),
+            new collider(new Vector2(250, 150), "ltr"),
+            new collider(new Vector2(350, 50), "l"),
+            new collider(new Vector2(350, 100), "l"),
+            new collider(new Vector2(350, 150), "lt"),
+            new collider(new Vector2(400, 150), "tr"),
+            new collider(new Vector2(400, 100), "r"),
+            new collider(new Vector2(400, 50), "r"),
+            new collider(new Vector2(500, 100), "lb"),
+            new collider(new Vector2(500, 150), "ltr"),
+            new collider(new Vector2(550, 100), "trb"),
+            new collider(new Vector2(650, 100), "ltrb"),
+            new collider(new Vector2(750, 100), "l"),
+            new collider(new Vector2(250, 250), "lb"),
+            new collider(new Vector2(300, 250), "b"),
+            new collider(new Vector2(350, 250), "b"),
+            new collider(new Vector2(400, 250), "b"),
+            new collider(new Vector2(450, 250), "b"),
+            new collider(new Vector2(500, 250), "rb"),
+            new collider(new Vector2(500, 300), "tr"),
+            new collider(new Vector2(450, 300), "t"),
+            new collider(new Vector2(400, 300), "t"),
+            new collider(new Vector2(350, 300), "t"),
+            new collider(new Vector2(300, 300), "t"),
+            new collider(new Vector2(250, 300), "lt"),
+            new collider(new Vector2(150, 200), "ltrb"),
+            new collider(new Vector2(50, 200), "trb"),
+            new collider(new Vector2(600, 200), "ltrb"),
+            new collider(new Vector2(0, 700), "r"),
+            new collider(new Vector2(0, 650), "r"),
+            new collider(new Vector2(0, 600), "r"),
+            new collider(new Vector2(50, 550), "trb"),
+            new collider(new Vector2(0, 500), "r"),
+            new collider(new Vector2(0, 450), "rb"),
+            new collider(new Vector2(50, 750), "b"),
+            new collider(new Vector2(100, 750), "b"),
+            new collider(new Vector2(150, 750), "b"),
+            new collider(new Vector2(200, 750), "b"),
+            new collider(new Vector2(250, 750), "b"),
+            new collider(new Vector2(300, 750), "b"),
+            new collider(new Vector2(350, 700), "l"),
+            new collider(new Vector2(350, 650), "l"),
+            new collider(new Vector2(350, 600), "lb"),
+            new collider(new Vector2(400, 600), "rb"),
+            new collider(new Vector2(400, 650), "r"),
+            new collider(new Vector2(400, 700), "r"),
+            new collider(new Vector2(450, 750), "b"),
+            new collider(new Vector2(500, 750), "b"),
+            new collider(new Vector2(550, 750), "b"),
+            new collider(new Vector2(600, 750), "b"),
+            new collider(new Vector2(650, 750), "b"),
+            new collider(new Vector2(700, 750), "b"),
+            new collider(new Vector2(750, 700), "l"),
+            new collider(new Vector2(750, 650), "l"),
+            new collider(new Vector2(750, 600), "l"),
+            new collider(new Vector2(700, 550), "ltb"),
+            new collider(new Vector2(750, 500), "l"),
+            new collider(new Vector2(750, 450), "lb"),
+            new collider(new Vector2(750, 300), "lt"),
+            new collider(new Vector2(750, 250), "l"),
+            new collider(new Vector2(700, 200), "ltb"),
+            new collider(new Vector2(750, 150), "l"),
+            new collider(new Vector2(100, 650), "ltrb"),
+            new collider(new Vector2(150, 550), "ltrb"),
+            new collider(new Vector2(200, 650), "ltb"),
+            new collider(new Vector2(250, 650), "tr"),
+            new collider(new Vector2(250, 600), "lrb"),
+            new collider(new Vector2(250, 500), "lt"),
+            new collider(new Vector2(300, 500), "tb"),
+            new collider(new Vector2(300, 500), "tb"),
+            new collider(new Vector2(250, 450), "lr"),
+            new collider(new Vector2(250, 400), "lb"),
+            new collider(new Vector2(300, 400), "tbr"),
+            new collider(new Vector2(450, 400), "ltb"),
+            new collider(new Vector2(500, 400), "br"),
+            new collider(new Vector2(500, 450), "lr"),
+            new collider(new Vector2(500, 500), "tr"),
+            new collider(new Vector2(450, 500), "tb"),
+            new collider(new Vector2(400, 500), "tb"),
+            new collider(new Vector2(350, 500), "tb"),
+            new collider(new Vector2(650, 650), "ltrb"),
+            new collider(new Vector2(600, 550), "ltrb"),
+            new collider(new Vector2(500, 600), "lrb"),
+            new collider(new Vector2(500, 650), "lt"),
+            new collider(new Vector2(550, 650), "trb"),
+            new collider(new Vector2(100, 300), "lb"),
+            new collider(new Vector2(100, 350), "l"),
+            new collider(new Vector2(100, 400), "l"),
+            new collider(new Vector2(100, 450), "lt"),
+            new collider(new Vector2(150, 450), "tr"),
+            new collider(new Vector2(150, 400), "r"),
+            new collider(new Vector2(150, 350), "r"),
+            new collider(new Vector2(150, 300), "rb"),
+            new collider(new Vector2(650, 300), "rb"),
+            new collider(new Vector2(650, 350), "r"),
+            new collider(new Vector2(650, 400), "r"),
+            new collider(new Vector2(650, 450), "tr"),
+            new collider(new Vector2(600, 450), "lt"),
+            new collider(new Vector2(600, 400), "l"),
+            new collider(new Vector2(600, 350), "l"),
+            new collider(new Vector2(600, 300), "lb"),
+            new collider(new Vector2(350, 400), "d"),
+            new collider(new Vector2(400, 400), "d"),
+            new collider(new Vector2(0, 0), "cf"),
+            new collider(new Vector2(750, 0), "cf"),
+            new collider(new Vector2(750, 750), "cf"),
+            new collider(new Vector2(0, 750), "cf"),
+            new collider(new Vector2(0, 550), "cf"),
+            new collider(new Vector2(750, 550), "cf"),
+            new collider(new Vector2(0, 200), "cf"),
+            new collider(new Vector2(750, 200), "cf"),
+            new collider(new Vector2(350, 0), "cf"),
+            new collider(new Vector2(400, 0), "cf"),
+            new collider(new Vector2(350, 750), "cf"),
+            new collider(new Vector2(400, 750), "cf"),
+            new collider(new Vector2(500, 550), "cf"),
+            new collider(new Vector2(450, 550), "cf"),
+            new collider(new Vector2(400, 550), "cf"),
+            new collider(new Vector2(350, 550), "cf"),
+            new collider(new Vector2(300, 550), "cf"),
+            new collider(new Vector2(250, 550), "cf"),
+            new collider(new Vector2(300, 450), "cf"),
+            new collider(new Vector2(350, 450), "cf"),
+            new collider(new Vector2(400, 450), "cf"),
+            new collider(new Vector2(450, 450), "cf"),
+            new collider(new Vector2(0, 400), "cf"),
+            new collider(new Vector2(0, 350), "cf"),
+            new collider(new Vector2(750, 400), "cf"),
+            new collider(new Vector2(750, 350), "cf"),
+        ];
+
+        renderColliders(collidersPositions);
+        spawnCoins(collidersPositions);
+        let ghosts = [
+            new ghost("red", new Vector2(300, 450), "red"),
+            new ghost("red", new Vector2(350, 450), "green"),
+            new ghost("red", new Vector2(400, 450), "blue"),
+            new ghost("red", new Vector2(450, 450), "yellow")
+        ]
+        spawnPlayer(new Vector2(400, 550));
+
+        // game variables
+        let player = document.getElementById("player")
+        let score = 0;
+
+        // game loop
+        let gameLoop = setInterval(() => {
+            if (checkCollisions(playerPosition, playerDirection, collidersPositions))
+                switch (playerDirection) {
+                    case 0:
+                        playerPosition.x -= 50
+                        break;
+                    case 1:
+                        playerPosition.y += 50
+                        break;
+                    case 2:
+                        playerPosition.x += 50
+                        break;
+                    case 3:
+                        playerPosition.y -= 50
+                        break;
+                    default:
+                        break;
+                }
+
+            if (playerPosition.x == -50)
+                playerPosition.x = 750
+            else if (playerPosition.x == 800)
+                playerPosition.x = 0
+            if (playerPosition.y == -50)
+                playerPosition.y = 750
+            else if (playerPosition.y == 800)
+                playerPosition.y = 0
+
+            player.style.left = `${playerPosition.x}px`;
+            player.style.bottom = `${playerPosition.y}px`;
+
+            let coin = document.getElementById(`coin${playerPosition.x}${playerPosition.y}`);
+            if (coin != null) {
+                coin.remove();
+                score += 10;
+            }
+
+
+            for (let u = 0; u < ghosts.length; u++)
+                ghosts[u].Move();
+
+            document.getElementById("score").innerText = `SCORE: ${score}`;
+            lastPlayerPosition = playerPosition;
+        }, 400)
+
+        window.addEventListener("keydown", event => {
+            if (event.key == "ArrowLeft" && !isColliderOnPosition(collidersPositions, new Vector2(playerPosition.x - 50, playerPosition.y), false)) {
+                playerDirection = 0
+                player.style.transform = 'rotate(0deg)'
+            }
+            if (event.key == "ArrowUp" && !isColliderOnPosition(collidersPositions, new Vector2(playerPosition.x, playerPosition.y + 50), false)) {
+                playerDirection = 1
+                player.style.transform = 'rotate(90deg)'
+            }
+            if (event.key == "ArrowRight" && !isColliderOnPosition(collidersPositions, new Vector2(playerPosition.x + 50, playerPosition.y), false)) {
+                playerDirection = 2;
+                player.style.transform = 'rotate(180deg)'
+            }
+            if (event.key == "ArrowDown" && !isColliderOnPosition(collidersPositions, new Vector2(playerPosition.x, playerPosition.y - 50), false)) {
+                playerDirection = 3;
+                player.style.transform = 'rotate(270deg)'
+            }
+        })
+    </script>
+</body>
+
+</html>
